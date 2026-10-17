@@ -1,0 +1,6 @@
+{
+  "name": "AB.M. Scan",
+  "description": "Android Privacy & Security Audit application by ABM — Abhinav Mishra",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
