@@ -52,12 +52,12 @@ jobs:
               kind="flutter"
             elif [[ -f "package.json" && -d "android" ]]; then
               kind="react-native"
-            elif [[ -f "gradlew" || ( -d "app" && -f "settings.gradle" ) || ( -d "app" && -f "settings.gradle.kts" ) ]]; then
+            elif [[ -f "settings.gradle" || -f "settings.gradle.kts" ]]; then
               kind="native-android"
-            elif [[ -f "android/gradlew" ]]; then
+            elif [[ -f "app/build.gradle" || -f "app/build.gradle.kts" ]]; then
               kind="native-android"
             else
-              echo "::error::Could not identify an Android project. Expected pubspec.yaml, package.json + android/, or a Gradle Android project."
+              echo "::error::Could not identify an Android project."
               exit 1
             fi
           fi
@@ -68,8 +68,14 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
           cache: gradle
+
+      - name: Set up Gradle
+        if: steps.detect.outputs.kind == 'native-android'
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.3.1"
 
       - name: Set up Flutter
         if: steps.detect.outputs.kind == 'flutter'
@@ -114,22 +120,16 @@ jobs:
           set -euo pipefail
           if [[ -f ./gradlew ]]; then
             chmod +x ./gradlew
-            if [[ "$VARIANT" == "release" ]]; then
-              ./gradlew assembleRelease --no-daemon
-            else
-              ./gradlew assembleDebug --no-daemon
-            fi
+            if [[ "$VARIANT" == "release" ]]; then ./gradlew assembleRelease --no-daemon
+            else ./gradlew assembleDebug --no-daemon; fi
           elif [[ -f ./android/gradlew ]]; then
             cd android
             chmod +x ./gradlew
-            if [[ "$VARIANT" == "release" ]]; then
-              ./gradlew assembleRelease --no-daemon
-            else
-              ./gradlew assembleDebug --no-daemon
-            fi
+            if [[ "$VARIANT" == "release" ]]; then ./gradlew assembleRelease --no-daemon
+            else ./gradlew assembleDebug --no-daemon; fi
           else
-            echo "::error::Gradle wrapper not found. Commit gradlew and the gradle/wrapper files to the repository."
-            exit 1
+            if [[ "$VARIANT" == "release" ]]; then gradle assembleRelease --no-daemon
+            else gradle assembleDebug --no-daemon; fi
           fi
 
       - name: Build Flutter APK
@@ -138,11 +138,8 @@ jobs:
           VARIANT: ${{ inputs.build_variant }}
         run: |
           set -euo pipefail
-          if [[ "$VARIANT" == "release" ]]; then
-            flutter build apk --release
-          else
-            flutter build apk --debug
-          fi
+          if [[ "$VARIANT" == "release" ]]; then flutter build apk --release
+          else flutter build apk --debug; fi
 
       - name: Build React Native APK
         if: steps.detect.outputs.kind == 'react-native'
@@ -153,11 +150,8 @@ jobs:
           set -euo pipefail
           cd android
           chmod +x ./gradlew
-          if [[ "$VARIANT" == "release" ]]; then
-            ./gradlew assembleRelease --no-daemon
-          else
-            ./gradlew assembleDebug --no-daemon
-          fi
+          if [[ "$VARIANT" == "release" ]]; then ./gradlew assembleRelease --no-daemon
+          else ./gradlew assembleDebug --no-daemon; fi
 
       - name: Find APK files
         id: apk
@@ -173,7 +167,6 @@ jobs:
           for file in "${files[@]}"; do
             cp "$file" "dist/$(basename "$(dirname "$file")")-$(basename "$file")"
           done
-          echo "Found ${#files[@]} APK file(s):"
           ls -lh dist
 
       - name: Upload APK artifact
